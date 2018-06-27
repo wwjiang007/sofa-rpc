@@ -51,7 +51,7 @@ public class CommonUtils {
      * @return 不为空，且为true
      */
     public static boolean isTrue(String b) {
-        return b != null && "true".equalsIgnoreCase(b);
+        return b != null && StringUtils.TRUE.equalsIgnoreCase(b);
     }
 
     /**
@@ -81,7 +81,7 @@ public class CommonUtils {
      * @return 不为空，且为true
      */
     public static boolean isFalse(String b) {
-        return b != null && "false".equalsIgnoreCase(b);
+        return b != null && StringUtils.FALSE.equalsIgnoreCase(b);
     }
 
     /**
@@ -171,6 +171,24 @@ public class CommonUtils {
                 return Integer.parseInt(num);
             } catch (Exception e) {
                 return defaultInt;
+            }
+        }
+    }
+
+    /**
+     * String Long turn number.
+     * @param num         The number of strings.
+     * @param defaultLong The default value
+     * @return long
+     */
+    public static long parseLong(String num, long defaultLong) {
+        if (num == null) {
+            return defaultLong;
+        } else {
+            try {
+                return Long.parseLong(num);
+            } catch (Exception e) {
+                return defaultLong;
             }
         }
     }

@@ -18,6 +18,7 @@ package com.alipay.sofa.rpc.client;
 
 import com.alipay.sofa.rpc.bootstrap.ConsumerBootstrap;
 import com.alipay.sofa.rpc.common.RpcConstants;
+import com.alipay.sofa.rpc.common.utils.ClassUtils;
 import com.alipay.sofa.rpc.common.utils.CommonUtils;
 import com.alipay.sofa.rpc.common.utils.StringUtils;
 import com.alipay.sofa.rpc.config.ConsumerConfig;
@@ -45,6 +46,7 @@ import com.alipay.sofa.rpc.log.LoggerFactory;
 import com.alipay.sofa.rpc.message.ResponseFuture;
 import com.alipay.sofa.rpc.transport.ClientTransport;
 
+import java.lang.reflect.Method;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Iterator;
@@ -201,7 +203,7 @@ public abstract class AbstractCluster extends Cluster {
         ProviderGroup oldProviderGroup = addressHolder.getProviderGroup(providerGroup.getName());
         if (ProviderHelper.isEmpty(providerGroup)) {
             addressHolder.updateProviders(providerGroup);
-            if (CommonUtils.isNotEmpty(oldProviderGroup.getProviderInfos())) {
+            if (!ProviderHelper.isEmpty(oldProviderGroup)) {
                 if (LOGGER.isWarnEnabled(consumerConfig.getAppName())) {
                     LOGGER.warnWithApp(consumerConfig.getAppName(), "Provider list is emptied, may be all " +
                         "providers has been closed, or this consumer has been add to blacklist");
@@ -268,9 +270,6 @@ public abstract class AbstractCluster extends Cluster {
                         "Unmatched protocol between consumer [{}] and provider [{}].",
                         consumerConfig.getProtocol(), providerInfo.getProtocolType());
                 }
-            }
-            if (StringUtils.isEmpty(providerInfo.getSerializationType())) {
-                providerInfo.setSerializationType(consumerConfig.getSerialization());
             }
         }
     }
@@ -398,7 +397,7 @@ public abstract class AbstractCluster extends Cluster {
      * @return the provider
      */
     protected ProviderInfo selectPinpointProvider(String targetIP, List<ProviderInfo> providerInfos) {
-        ProviderInfo tp = ProviderInfo.valueOf(targetIP);
+        ProviderInfo tp = ProviderHelper.toProviderInfo(targetIP);
         for (ProviderInfo providerInfo : providerInfos) {
             if (providerInfo.getHost().equals(tp.getHost())
                 && StringUtils.equals(providerInfo.getProtocolType(), tp.getProtocolType())
@@ -469,7 +468,8 @@ public abstract class AbstractCluster extends Cluster {
      * @throws SofaRpcException 请求RPC异常
      */
     protected SofaResponse filterChain(ProviderInfo providerInfo, SofaRequest request) throws SofaRpcException {
-        RpcInternalContext.getContext().setProviderInfo(providerInfo);
+        RpcInternalContext context = RpcInternalContext.getContext();
+        context.setProviderInfo(providerInfo);
         return filterChain.invoke(request);
     }
 
@@ -519,7 +519,7 @@ public abstract class AbstractCluster extends Cluster {
                 long start = RpcRuntimeContext.now();
                 try {
                     transport.oneWaySend(request, timeout);
-                    response = new SofaResponse();
+                    response = buildEmptyResponse(request);
                 } finally {
                     if (RpcInternalContext.isAttachmentEnable()) {
                         long elapsed = RpcRuntimeContext.now() - start;
@@ -538,16 +538,21 @@ public abstract class AbstractCluster extends Cluster {
                         request.setSofaResponseCallback(methodResponseCallback);
                     }
                 }
+                // 记录发送开始时间
+                context.setAttachment(RpcConstants.INTERNAL_KEY_CLIENT_SEND_TIME, RpcRuntimeContext.now());
+                // 开始调用
                 transport.asyncSend(request, timeout);
-                response = new SofaResponse();
+                response = buildEmptyResponse(request);
             }
             // Future调用
             else if (RpcConstants.INVOKER_TYPE_FUTURE.equals(invokeType)) {
+                // 记录发送开始时间
+                context.setAttachment(RpcConstants.INTERNAL_KEY_CLIENT_SEND_TIME, RpcRuntimeContext.now());
                 // 开始调用
                 ResponseFuture future = transport.asyncSend(request, timeout);
                 // 放入线程上下文
                 RpcInternalContext.getContext().setFuture(future);
-                response = new SofaResponse();
+                response = buildEmptyResponse(request);
             } else {
                 throw new SofaRpcException(RpcErrorType.CLIENT_UNDECLARED_ERROR, "Unknown invoke type:" + invokeType);
             }
@@ -557,6 +562,15 @@ public abstract class AbstractCluster extends Cluster {
         } catch (Throwable e) { // 客户端其它异常
             throw new SofaRpcException(RpcErrorType.CLIENT_UNDECLARED_ERROR, e);
         }
+    }
+
+    private SofaResponse buildEmptyResponse(SofaRequest request) {
+        SofaResponse response = new SofaResponse();
+        Method method = request.getMethod();
+        if (method != null) {
+            response.setAppResponse(ClassUtils.getDefaultPrimitiveValue(method.getReturnType()));
+        }
+        return response;
     }
 
     /**

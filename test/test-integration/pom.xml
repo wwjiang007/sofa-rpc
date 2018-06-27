@@ -7,7 +7,7 @@
     <parent>
         <groupId>com.alipay.sofa</groupId>
         <artifactId>sofa-rpc-test</artifactId>
-        <version>5.3.1</version>
+        <version>5.4.1-SNAPSHOT</version>
     </parent>
 
     <artifactId>sofa-rpc-test-integration</artifactId>
@@ -89,7 +89,22 @@
         </dependency>
         <dependency>
             <groupId>com.alipay.sofa</groupId>
+            <artifactId>sofa-rpc-bootstrap-http</artifactId>
+            <version>${project.parent.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>com.alipay.sofa</groupId>
             <artifactId>sofa-rpc-bootstrap-rest</artifactId>
+            <version>${project.parent.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>com.alipay.sofa</groupId>
+            <artifactId>sofa-rpc-codec-sofa-hessian</artifactId>
+            <version>${project.parent.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>com.alipay.sofa</groupId>
+            <artifactId>sofa-rpc-codec-protobuf</artifactId>
             <version>${project.parent.version}</version>
         </dependency>
         <dependency>
@@ -100,6 +115,11 @@
         <dependency>
             <groupId>com.alipay.sofa</groupId>
             <artifactId>sofa-rpc-log-common-tools</artifactId>
+            <version>${project.parent.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>com.alipay.sofa</groupId>
+            <artifactId>sofa-rpc-metrics-lookout</artifactId>
             <version>${project.parent.version}</version>
         </dependency>
         <dependency>
@@ -122,11 +142,32 @@
             <artifactId>sofa-rpc-remoting-resteasy</artifactId>
             <version>${project.parent.version}</version>
         </dependency>
+        <dependency>
+            <groupId>com.alipay.sofa</groupId>
+            <artifactId>sofa-rpc-remoting-http</artifactId>
+            <version>${project.parent.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>com.alipay.sofa</groupId>
+            <artifactId>sofa-rpc-tracer-opentracing</artifactId>
+            <version>${project.parent.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>com.alipay.sofa</groupId>
+            <artifactId>sofa-rpc-tracer-opentracing-resteasy</artifactId>
+            <version>${project.parent.version}</version>
+        </dependency>
 
         <!-- dependencies for rest begin -->
         <dependency>
             <groupId>javax.servlet</groupId>
             <artifactId>servlet-api</artifactId>
+            <scope>test</scope>
+        </dependency>
+
+        <dependency>
+            <groupId>org.apache.httpcomponents</groupId>
+            <artifactId>httpcore</artifactId>
             <scope>test</scope>
         </dependency>
 
@@ -162,6 +203,13 @@
             <scope>test</scope>
         </dependency>
         <!-- dependencies for validation end -->
+
+        <!-- lookout for test-->
+        <dependency>
+            <groupId>com.alipay.sofa.lookout</groupId>
+            <artifactId>lookout-core</artifactId>
+            <scope>test</scope>
+        </dependency>
 
         <dependency>
             <groupId>org.slf4j</groupId>

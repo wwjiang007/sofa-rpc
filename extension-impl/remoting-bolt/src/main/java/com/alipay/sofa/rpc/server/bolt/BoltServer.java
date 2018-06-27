@@ -18,20 +18,25 @@ package com.alipay.sofa.rpc.server.bolt;
 
 import com.alipay.remoting.RemotingServer;
 import com.alipay.remoting.rpc.RpcServer;
-import com.alipay.sofa.rpc.common.ReflectCache;
+import com.alipay.sofa.rpc.common.cache.ReflectCache;
 import com.alipay.sofa.rpc.common.struct.NamedThreadFactory;
 import com.alipay.sofa.rpc.config.ConfigUniqueNameGenerator;
 import com.alipay.sofa.rpc.config.ProviderConfig;
 import com.alipay.sofa.rpc.config.ServerConfig;
 import com.alipay.sofa.rpc.context.RpcRuntimeContext;
 import com.alipay.sofa.rpc.core.exception.SofaRpcRuntimeException;
+import com.alipay.sofa.rpc.event.EventBus;
+import com.alipay.sofa.rpc.event.ServerStartedEvent;
+import com.alipay.sofa.rpc.event.ServerStoppedEvent;
 import com.alipay.sofa.rpc.ext.Extension;
 import com.alipay.sofa.rpc.invoke.Invoker;
 import com.alipay.sofa.rpc.log.Logger;
 import com.alipay.sofa.rpc.log.LoggerFactory;
 import com.alipay.sofa.rpc.server.BusinessPool;
 import com.alipay.sofa.rpc.server.Server;
+import com.alipay.sofa.rpc.server.SofaRejectedExecutionHandler;
 
+import java.lang.reflect.Method;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ThreadPoolExecutor;
@@ -63,9 +68,9 @@ public class BoltServer implements Server {
     protected ServerConfig         serverConfig;
 
     /**
-     *
+     * BoltServerProcessor
      */
-    BoltServerProcessor            boltServerProcessor;
+    protected BoltServerProcessor  boltServerProcessor;
     /**
      * 业务线程池
      */
@@ -87,7 +92,7 @@ public class BoltServer implements Server {
     protected ThreadPoolExecutor initThreadPool(ServerConfig serverConfig) {
         ThreadPoolExecutor threadPool = BusinessPool.initPool(serverConfig);
         threadPool.setThreadFactory(new NamedThreadFactory(
-            "SofaBizProcessor-" + serverConfig.getPort(), serverConfig.isDaemon()));
+            "SEV-BOLT-BIZ-" + serverConfig.getPort(), serverConfig.isDaemon()));
         threadPool.setRejectedExecutionHandler(new SofaRejectedExecutionHandler());
         if (serverConfig.isPreStartCore()) { // 初始化核心线程池
             threadPool.prestartAllCoreThreads();
@@ -107,10 +112,20 @@ public class BoltServer implements Server {
             // 生成Server对象
             remotingServer = initRemotingServer();
             try {
-                if (!remotingServer.start(serverConfig.getBoundHost())) {
+                if (remotingServer.start(serverConfig.getBoundHost())) {
+                    if (LOGGER.isInfoEnabled()) {
+                        LOGGER.info("Bolt server has been bind to {}:{}", serverConfig.getBoundHost(),
+                            serverConfig.getPort());
+                    }
+                } else {
                     throw new SofaRpcRuntimeException("Failed to start bolt server, see more detail from bolt log.");
                 }
                 started = true;
+
+                if (EventBus.isEnable(ServerStartedEvent.class)) {
+                    EventBus.post(new ServerStartedEvent(serverConfig, bizThreadPool));
+                }
+
             } catch (SofaRpcRuntimeException e) {
                 throw e;
             } catch (Exception e) {
@@ -137,17 +152,25 @@ public class BoltServer implements Server {
     }
 
     @Override
-    public synchronized void stop() {
+    public void stop() {
         if (!started) {
             return;
         }
-        // 关闭端口，不关闭线程池
-        try {
-            remotingServer.stop();
-        } catch (IllegalStateException ignore) { // NOPMD
+        synchronized (this) {
+            if (!started) {
+                return;
+            }
+            // 关闭端口，不关闭线程池
+            try {
+                remotingServer.stop();
+            } catch (IllegalStateException ignore) { // NOPMD
+            }
+            if (EventBus.isEnable(ServerStoppedEvent.class)) {
+                EventBus.post(new ServerStoppedEvent(serverConfig));
+            }
+            remotingServer = null;
+            started = false;
         }
-        remotingServer = null;
-        started = false;
     }
 
     @Override
@@ -156,7 +179,9 @@ public class BoltServer implements Server {
         String key = ConfigUniqueNameGenerator.getUniqueName(providerConfig);
         invokerMap.put(key, instance);
         // 缓存接口的方法
-        ReflectCache.putServiceMethodCache(key, providerConfig.getProxyClass());
+        for (Method m : providerConfig.getProxyClass().getMethods()) {
+            ReflectCache.putOverloadMethodCache(key, m);
+        }
     }
 
     @Override
@@ -164,10 +189,8 @@ public class BoltServer implements Server {
         // 取消缓存Invoker对象
         String key = ConfigUniqueNameGenerator.getUniqueName(providerConfig);
         invokerMap.remove(key);
-        // 取消缓存接口方法
-        ReflectCache.invalidateServiceMethodCache(key);
         // 如果最后一个需要关闭，则关闭
-        if (closeIfNoEntry && invokerMap.size() == 0) {
+        if (closeIfNoEntry && invokerMap.isEmpty()) {
             stop();
         }
     }
@@ -204,9 +227,13 @@ public class BoltServer implements Server {
 
     @Override
     public void destroy(DestroyHook hook) {
-        hook.preDestroy();
+        if (hook != null) {
+            hook.preDestroy();
+        }
         destroy();
-        hook.postDestroy();
+        if (hook != null) {
+            hook.postDestroy();
+        }
     }
 
     /**

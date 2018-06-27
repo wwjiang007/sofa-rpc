@@ -18,6 +18,7 @@ package com.alipay.sofa.rpc.core.request;
 
 import com.alipay.sofa.rpc.common.RpcConstants;
 import com.alipay.sofa.rpc.core.invoke.SofaResponseCallback;
+import com.alipay.sofa.rpc.transport.AbstractByteBuf;
 
 import java.lang.reflect.Method;
 import java.util.HashMap;
@@ -35,12 +36,13 @@ public class SofaRequest extends RequestBase {
     private static final long   serialVersionUID = 7329530374415722876L;
 
     /**
-     * 对方应用名称：例如`A进程`调`B进程`(B里面有B1,B2两个应用)，这里传递的是B1。
+     * Target app name. If progress of 'AppA' want to call the progress which contains two apps('AppB1' and 'AppB2'),
+     * You need specified the target app name here. such as 'AppB2'
      */
     private String              targetAppName;
 
     /**
-     * 扩展属性 extensional properties
+     * Extensional properties of request
      */
     private Map<String, Object> requestProps;
 
@@ -65,7 +67,7 @@ public class SofaRequest extends RequestBase {
             return;
         }
         if (requestProps == null) {
-            requestProps = new HashMap<String, Object>();
+            requestProps = new HashMap<String, Object>(16);
         }
         requestProps.put(key, value);
     }
@@ -90,11 +92,11 @@ public class SofaRequest extends RequestBase {
      * @param map the map
      */
     public void addRequestProps(Map<String, Object> map) {
-        if (map == null || map.size() == 0) {
+        if (map == null || map.isEmpty()) {
             return;
         }
         if (requestProps == null) {
-            requestProps = new HashMap<String, Object>();
+            requestProps = new HashMap<String, Object>(16);
         }
         requestProps.putAll(map);
     }
@@ -128,7 +130,7 @@ public class SofaRequest extends RequestBase {
 
     //====================== 下面是非传递属性 ===============
     /**
-     * 方法对象(缓存一些，减少反射，服务端使用）
+     * 方法对象(为了减少反射缓存）
      */
     private transient Method               method;
 
@@ -138,19 +140,20 @@ public class SofaRequest extends RequestBase {
     private transient String               interfaceName;
 
     /**
-     * 序列化工厂类型：决定是否泛化调用（客户端使用）
-     */
-    private transient int                  serializeFactoryType;
-
-    /**
-     * 序列化类型（客户端使用）
+     * 序列化类型
      */
     private transient byte                 serializeType;
+
+    /**
+     * 请求数据
+     */
+    private transient AbstractByteBuf      data;
 
     /**
      * 调用类型（客户端使用）
      */
     private transient String               invokeType;
+
     /**
      * 用户层服务回调类，调用级别（客户端使用）
      */
@@ -177,26 +180,6 @@ public class SofaRequest extends RequestBase {
      */
     public void setMethod(Method method) {
         this.method = method;
-    }
-
-    /**
-     * Gets serialize factory type.
-     *
-     * @return the serialize factory type
-     */
-    public int getSerializeFactoryType() {
-        return serializeFactoryType;
-    }
-
-    /**
-     * Sets serialize factory type.
-     *
-     * @param serializeFactoryType the serialize factory type
-     * @return the serialize factory type
-     */
-    public SofaRequest setSerializeFactoryType(int serializeFactoryType) {
-        this.serializeFactoryType = serializeFactoryType;
-        return this;
     }
 
     /**
@@ -298,6 +281,26 @@ public class SofaRequest extends RequestBase {
     }
 
     /**
+     * Gets data.
+     *
+     * @return the data
+     */
+    public AbstractByteBuf getData() {
+        return data;
+    }
+
+    /**
+     * Sets data.
+     *
+     * @param data the data
+     * @return the data
+     */
+    public SofaRequest setData(AbstractByteBuf data) {
+        this.data = data;
+        return this;
+    }
+
+    /**
      * 是否异步请求
      *
      * @return 如果是Future和Callback，是异步请求
@@ -305,6 +308,5 @@ public class SofaRequest extends RequestBase {
     public boolean isAsync() {
         return invokeType != null && (RpcConstants.INVOKER_TYPE_CALLBACK.equals(invokeType)
             || RpcConstants.INVOKER_TYPE_FUTURE.equals(invokeType));
-
     }
 }

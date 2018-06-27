@@ -23,6 +23,7 @@ import com.alipay.sofa.rpc.common.RpcConfigs;
 import com.alipay.sofa.rpc.common.RpcConstants;
 import com.alipay.sofa.rpc.common.RpcOptions;
 import com.alipay.sofa.rpc.common.Version;
+import com.alipay.sofa.rpc.common.cache.RpcCacheManager;
 import com.alipay.sofa.rpc.common.struct.ConcurrentHashSet;
 import com.alipay.sofa.rpc.common.utils.CommonUtils;
 import com.alipay.sofa.rpc.config.ConsumerConfig;
@@ -37,11 +38,8 @@ import com.alipay.sofa.rpc.transport.ClientTransportFactory;
 
 import java.lang.management.ManagementFactory;
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.List;
-import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.CopyOnWriteArrayList;
 
 /**
@@ -119,6 +117,7 @@ public class RpcRuntimeContext {
         putIfAbsent(KEY_APPID, RpcConfigs.getOrDefaultValue(APP_ID, null));
         putIfAbsent(KEY_APPNAME, RpcConfigs.getOrDefaultValue(APP_NAME, null));
         putIfAbsent(KEY_APPINSID, RpcConfigs.getOrDefaultValue(INSTANCE_ID, null));
+        putIfAbsent(KEY_APPAPTH, System.getProperty("user.dir"));
     }
 
     /**
@@ -175,6 +174,8 @@ public class RpcRuntimeContext {
         for (Destroyable.DestroyHook destroyHook : DESTROY_HOOKS) {
             destroyHook.postDestroy();
         }
+        // 清理缓存
+        RpcCacheManager.clearAll();
         RpcRunningState.setShuttingDown(false);
         if (LOGGER.isWarnEnabled()) {
             LOGGER.warn("SOFA RPC Framework has been release all resources {}...",
@@ -301,116 +302,35 @@ public class RpcRuntimeContext {
     /**
      * 当前所在文件夹地址
      */
-    public static final String                                     KEY_APPAPTH       = "appPath";
+    public static final String KEY_APPAPTH  = "appPath";
 
     /**
      * 应用Id
      */
-    public static final String                                     APP_ID            = "sofa.app.id";
+    public static final String APP_ID       = "sofa.app.id";
     /**
      * 应用名称
      */
-    public static final String                                     APP_NAME          = "sofa.app.name";
+    public static final String APP_NAME     = "sofa.app.name";
     /**
      * 应用实例Id
      */
-    public static final String                                     INSTANCE_ID       = "sofa.instance.id";
+    public static final String INSTANCE_ID  = "sofa.instance.id";
 
     /**
      * 自动部署的appId
      */
-    public static final String                                     KEY_APPID         = "appId";
+    public static final String KEY_APPID    = "appId";
 
     /**
      * 自动部署的appName
      */
-    public static final String                                     KEY_APPNAME       = "appName";
+    public static final String KEY_APPNAME  = "appName";
 
     /**
      * 自动部署的appInsId
      */
-    public static final String                                     KEY_APPINSID      = "appInsId";
-
-    /**
-     * 接口配置map {接口名，{key,value}}
-     */
-    public static final ConcurrentMap<String, Map<String, String>> INTERFACE_CONFIGS = new ConcurrentHashMap<String, Map<String, String>>();
-
-    /**
-     * 获取全局参数
-     *
-     * @param key        the key
-     * @param defaultVal the default val
-     * @return the global val
-     */
-    public static String getGlobalVal(String key, String defaultVal) {
-        return getInterfaceVal(RpcConstants.GLOBAL_SETTING, key, defaultVal);
-    }
-
-    /**
-     * 设置全局参数
-     *
-     * @param key   the key
-     * @param value the value
-     */
-    public static void putGlobalVal(String key, String value) {
-        putInterfaceVal(RpcConstants.GLOBAL_SETTING, key, value);
-    }
-
-    /**
-     * 获取接口参数
-     *
-     * @param interfaceId the interface id
-     * @param key         the key
-     * @param defaultVal  the default val
-     * @return the interface val
-     */
-    public static String getInterfaceVal(String interfaceId, String key, String defaultVal) {
-        Map<String, String> map = INTERFACE_CONFIGS.get(interfaceId);
-        if (map == null) {
-            map = CommonUtils.putToConcurrentMap(INTERFACE_CONFIGS,
-                interfaceId, new ConcurrentHashMap<String, String>());
-        }
-        String val = map.get(key);
-        return val == null ? defaultVal : val;
-    }
-
-    /**
-     * 设置接口参数
-     *
-     * @param interfaceId the interface id
-     * @param key         the key
-     * @param value       the value
-     */
-    public static void putInterfaceVal(String interfaceId, String key, String value) {
-        if (value != null) {
-            Map<String, String> map = INTERFACE_CONFIGS.get(interfaceId);
-            if (map == null) {
-                map = CommonUtils.putToConcurrentMap(INTERFACE_CONFIGS,
-                    interfaceId, new ConcurrentHashMap<String, String>());
-            }
-            map.put(key, value);
-        }
-    }
-
-    /**
-     * 得到全部接口下的全部参数
-     *
-     * @return the config map
-     */
-    public static Map<String, Map<String, String>> getConfigMaps() {
-        return Collections.unmodifiableMap(INTERFACE_CONFIGS);
-    }
-
-    /**
-     * 获取接口全部参数
-     *
-     * @param interfaceId the interface id
-     * @return the config map
-     */
-    public static Map<String, String> getConfigMap(String interfaceId) {
-        return INTERFACE_CONFIGS.get(interfaceId);
-    }
+    public static final String KEY_APPINSID = "appInsId";
 
     /**
      * 按应用名卸载RPC相关服务<br>
