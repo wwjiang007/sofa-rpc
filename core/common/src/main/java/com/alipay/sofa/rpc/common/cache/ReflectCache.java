@@ -20,7 +20,10 @@ import com.alipay.sofa.rpc.common.annotation.VisibleForTesting;
 import com.alipay.sofa.rpc.common.utils.ClassLoaderUtils;
 
 import java.lang.reflect.Method;
+import java.util.Map;
+import java.util.WeakHashMap;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentMap;
 
 /**
  * 业务要支持多ClassLoader，需要缓存ClassLoader或者方法等相关信息
@@ -36,13 +39,13 @@ public final class ReflectCache {
      * 应用对应的ClassLoader
      */
     @VisibleForTesting
-    static final ConcurrentHashMap<String, ClassLoader> APPNAME_CLASSLOADER_MAP = new ConcurrentHashMap<String, ClassLoader>();
+    static final ConcurrentMap<String, ClassLoader> APPNAME_CLASSLOADER_MAP = new ConcurrentHashMap<String, ClassLoader>();
 
     /**
      * 服务对应的ClassLoader
      */
     @VisibleForTesting
-    static final ConcurrentHashMap<String, ClassLoader> SERVICE_CLASSLOADER_MAP = new ConcurrentHashMap<String, ClassLoader>();
+    static final ConcurrentMap<String, ClassLoader> SERVICE_CLASSLOADER_MAP = new ConcurrentHashMap<String, ClassLoader>();
 
     /**
      * 注册服务所在的ClassLoader
@@ -80,6 +83,15 @@ public final class ReflectCache {
     }
 
     /**
+     * 发注册服务的 ClassLoader
+     * @param serviceUniqueName
+     * @return
+     */
+    public static ClassLoader unRegisterServiceClassLoader(String serviceUniqueName) {
+        return SERVICE_CLASSLOADER_MAP.remove(serviceUniqueName);
+    }
+
+    /**
      * 得到服务的自定义ClassLoader
      *
      * @param serviceUniqueName 服务唯一名称
@@ -99,13 +111,13 @@ public final class ReflectCache {
      * String-->Class 缓存
      */
     @VisibleForTesting
-    static final ConcurrentHashMap<String, Class> CLASS_CACHE    = new ConcurrentHashMap<String, Class>();
+    static final ConcurrentMap<String, WeakHashMap<ClassLoader, Class>> CLASS_CACHE    = new ConcurrentHashMap<String, WeakHashMap<ClassLoader, Class>>();
 
     /**
-     * String-->Class 缓存
+     * Class-->String 缓存
      */
     @VisibleForTesting
-    static final ConcurrentHashMap<Class, String> TYPE_STR_CACHE = new ConcurrentHashMap<Class, String>();
+    static final ConcurrentMap<Class, String>                           TYPE_STR_CACHE = new ConcurrentHashMap<Class, String>();
 
     /**
      * 放入Class缓存
@@ -114,7 +126,8 @@ public final class ReflectCache {
      * @param clazz   类
      */
     public static void putClassCache(String typeStr, Class clazz) {
-        CLASS_CACHE.put(typeStr, clazz);
+        CLASS_CACHE.putIfAbsent(typeStr, new WeakHashMap<ClassLoader, Class>());
+        CLASS_CACHE.get(typeStr).put(clazz.getClassLoader(), clazz);
     }
 
     /**
@@ -124,7 +137,13 @@ public final class ReflectCache {
      * @return 类
      */
     public static Class getClassCache(String typeStr) {
-        return CLASS_CACHE.get(typeStr);
+        ClassLoader classLoader = Thread.currentThread().getContextClassLoader();
+        if (classLoader == null) {
+            return null;
+        } else {
+            Map<ClassLoader, Class> temp = CLASS_CACHE.get(typeStr);
+            return temp == null ? null : temp.get(classLoader);
+        }
     }
 
     /**
@@ -153,13 +172,13 @@ public final class ReflectCache {
      * 不支持重载的方法对象缓存 {service:{方法名:Method}}
      */
     @VisibleForTesting
-    static final ConcurrentHashMap<String, ConcurrentHashMap<String, Method>>   NOT_OVERLOAD_METHOD_CACHE      = new ConcurrentHashMap<String, ConcurrentHashMap<String, Method>>();
+    static final ConcurrentMap<String, ConcurrentHashMap<String, Method>>   NOT_OVERLOAD_METHOD_CACHE      = new ConcurrentHashMap<String, ConcurrentHashMap<String, Method>>();
 
     /**
      * 不支持重载的方法对象参数签名缓存 {service:{方法名:对象参数签名}}
      */
     @VisibleForTesting
-    static final ConcurrentHashMap<String, ConcurrentHashMap<String, String[]>> NOT_OVERLOAD_METHOD_SIGS_CACHE = new ConcurrentHashMap<String, ConcurrentHashMap<String, String[]>>();
+    static final ConcurrentMap<String, ConcurrentHashMap<String, String[]>> NOT_OVERLOAD_METHOD_SIGS_CACHE = new ConcurrentHashMap<String, ConcurrentHashMap<String, String[]>>();
 
     /**
      * 往缓存里放入方法
@@ -248,7 +267,7 @@ public final class ReflectCache {
      * 用于缓存参数列表，不是按接口，是按ServiceUniqueName
      */
     @VisibleForTesting
-    final static ConcurrentHashMap<String, ConcurrentHashMap<String, Method>> OVERLOAD_METHOD_CACHE = new ConcurrentHashMap<String, ConcurrentHashMap<String, Method>>();
+    final static ConcurrentMap<String, ConcurrentHashMap<String, Method>> OVERLOAD_METHOD_CACHE = new ConcurrentHashMap<String, ConcurrentHashMap<String, Method>>();
 
     /**
      * 往缓存里放入方法

@@ -54,7 +54,7 @@ import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicInteger;
 
 /**
- * Bolt server processor of bolt server. 
+ * Bolt server processor of bolt server.
  *
  * @author <a href="mailto:zhanggeng.zg@antfin.com">GengZhang</a>
  */
@@ -261,7 +261,7 @@ public class BoltServerProcessor extends AsyncUserProcessor<SofaRequest> {
      */
     private SofaRpcException cannotFoundServiceMethod(String appName, String serviceName, String methodName) {
         String errorMsg = LogCodes.getLog(
-            LogCodes.ERROR_PROVIDER_SERVICE_METHOD_CANNOT_FOUND, methodName, serviceName);
+            LogCodes.ERROR_PROVIDER_SERVICE_METHOD_CANNOT_FOUND, serviceName, methodName);
         LOGGER.errorWithApp(appName, errorMsg);
         return new SofaRpcException(RpcErrorType.SERVER_NOT_FOUND_INVOKER, errorMsg);
     }
@@ -355,7 +355,21 @@ public class BoltServerProcessor extends AsyncUserProcessor<SofaRequest> {
 
     @Override
     public boolean timeoutDiscard() {
-        // 业务线程自己判断超时请求
-        return false;
+        final Map<String, String> parameters = boltServer.serverConfig.getParameters();
+        if (CommonUtils.isEmpty(parameters)) {
+            return false;
+        }
+        String timeoutDiscard = parameters.get(RpcConstants.TIMEOUT_DISCARD_IN_SERVER);
+        return Boolean.parseBoolean(parameters.get(timeoutDiscard));
+    }
+
+    @Override
+    public boolean processInIOThread() {
+        final Map<String, String> parameters = boltServer.serverConfig.getParameters();
+        if (CommonUtils.isEmpty(parameters)) {
+            return false;
+        }
+        String processInIOThread = parameters.get(RpcConstants.PROCESS_IN_IOTHREAD);
+        return Boolean.parseBoolean(parameters.get(processInIOThread));
     }
 }

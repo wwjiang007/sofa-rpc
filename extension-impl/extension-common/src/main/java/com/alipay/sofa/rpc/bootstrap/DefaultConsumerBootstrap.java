@@ -32,6 +32,9 @@ import com.alipay.sofa.rpc.config.ConsumerConfig;
 import com.alipay.sofa.rpc.config.RegistryConfig;
 import com.alipay.sofa.rpc.context.RpcRuntimeContext;
 import com.alipay.sofa.rpc.core.exception.SofaRpcRuntimeException;
+import com.alipay.sofa.rpc.dynamic.DynamicConfigKeys;
+import com.alipay.sofa.rpc.dynamic.DynamicConfigManager;
+import com.alipay.sofa.rpc.dynamic.DynamicConfigManagerFactory;
 import com.alipay.sofa.rpc.ext.Extension;
 import com.alipay.sofa.rpc.invoke.Invoker;
 import com.alipay.sofa.rpc.listener.ConfigListener;
@@ -47,6 +50,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -77,27 +81,27 @@ public class DefaultConsumerBootstrap<T> extends ConsumerBootstrap<T> {
     /**
      * 代理实现类
      */
-    protected transient volatile T                                  proxyIns;
+    protected transient volatile T                              proxyIns;
 
     /**
      * 代理的Invoker对象
      */
-    protected transient volatile Invoker                            proxyInvoker;
+    protected transient volatile Invoker                        proxyInvoker;
 
     /**
      * 调用类
      */
-    protected transient volatile Cluster                            cluster;
+    protected transient volatile Cluster                        cluster;
 
     /**
      * 计数器
      */
-    protected transient volatile CountDownLatch                     respondRegistries;
+    protected transient volatile CountDownLatch                 respondRegistries;
 
     /**
      * 发布的调用者配置（含计数器）
      */
-    protected final static ConcurrentHashMap<String, AtomicInteger> REFERRED_KEYS = new ConcurrentHashMap<String, AtomicInteger>();
+    protected final static ConcurrentMap<String, AtomicInteger> REFERRED_KEYS = new ConcurrentHashMap<String, AtomicInteger>();
 
     @Override
     public T refer() {
@@ -154,6 +158,14 @@ public class DefaultConsumerBootstrap<T> extends ConsumerBootstrap<T> {
                 // 创建代理类
                 proxyIns = (T) ProxyFactory.buildProxy(consumerConfig.getProxy(), consumerConfig.getProxyClass(),
                     proxyInvoker);
+
+                //动态配置
+                final String dynamicAlias = consumerConfig.getParameter(DynamicConfigKeys.DYNAMIC_ALIAS);
+                if (StringUtils.isNotBlank(dynamicAlias)) {
+                    final DynamicConfigManager dynamicManager = DynamicConfigManagerFactory.getDynamicManager(
+                        consumerConfig.getAppName(), dynamicAlias);
+                    dynamicManager.initServiceConfiguration(consumerConfig.getInterfaceId());
+                }
             } catch (Exception e) {
                 if (cluster != null) {
                     cluster.destroy();

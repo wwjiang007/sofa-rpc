@@ -34,6 +34,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentMap;
 
 /**
  * Factory of server
@@ -45,12 +46,12 @@ public final class ServerFactory {
     /**
      * slf4j Logger for this class
      */
-    private final static Logger                            LOGGER     = LoggerFactory
-                                                                          .getLogger(ServerFactory.class);
+    private final static Logger                        LOGGER     = LoggerFactory
+                                                                      .getLogger(ServerFactory.class);
     /**
      * 全部服务端
      */
-    private final static ConcurrentHashMap<String, Server> SERVER_MAP = new ConcurrentHashMap<String, Server>();
+    private final static ConcurrentMap<String, Server> SERVER_MAP = new ConcurrentHashMap<String, Server>();
 
     /**
      * 初始化Server实例
@@ -147,5 +148,18 @@ public final class ServerFactory {
             }
         }
         SERVER_MAP.clear();
+    }
+
+    public static void destroyServer(ServerConfig serverConfig) {
+        try {
+            Server server = serverConfig.getServer();
+            if (server != null) {
+                serverConfig.setServer(null);
+                SERVER_MAP.remove(Integer.toString(serverConfig.getPort()));
+                server.destroy();
+            }
+        } catch (Exception e) {
+            LOGGER.error("Error when destroy server with key:" + serverConfig.getPort(), e);
+        }
     }
 }
